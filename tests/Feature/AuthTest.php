@@ -11,7 +11,7 @@ class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function user_can_register(): void
     {
         $response = $this->post('/api/register', [
@@ -30,7 +30,7 @@ class AuthTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function user_cannot_login_with_unvalid_credentials()
     {
 
@@ -43,7 +43,7 @@ class AuthTest extends TestCase
             ->assertJson(['message' => 'Invalid credentials']);
     }
 
-    /** @test */
+    #[Test]
     public function user_can_login()
     {
         $user = User::factory()->create([
