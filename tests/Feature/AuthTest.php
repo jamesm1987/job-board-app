@@ -5,20 +5,33 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use App\Models\User;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+use Laravel\Sanctum\Sanctum;
 
 class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function setUp(): void
+    {
+        parent::setUp();
+        
+        $this->seed();
+    }
+    
     #[Test]
     public function user_can_register(): void
     {
-        $response = $this->post('/api/register', [
+        $role = Role::whereNot('name', 'Admin')->pluck('name')->random();
+        
+        $response = $this->postJson('/api/register', [
             'name' => 'user',
             'email' => 'user@user.com',
             'password' => 'password',
-            'password_confirmation' => 'password'
+            'password_confirmation' => 'password',
+            'role' => $role
         ]);
 
         $response->assertStatus(201)
@@ -28,6 +41,47 @@ class AuthTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'user@user.com'
         ]);
+    }
+
+    #[Test]
+    public function user_cannot_register_with_existing_email(): void
+    {
+
+        $role = Role::whereNot('name', 'Admin')->pluck('name')->random();
+        $user = User::factory()->create([
+            'name' => 'Existing User',
+            'email' => 'user@user.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        $user->assignRole($role);
+
+        $response = $this->postJson('/api/register', [
+            'name' => 'New User',
+            'email' => 'user@user.com',
+            'password' => 'password',
+            'password_confirmation' => 'password'
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+   
+    #[Test]
+    public function user_can_login()
+    {
+        $user = User::factory()->create([
+            'email' => 'user@user.com',
+            'password' => bcrypt('password')
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'user@user.com',
+            'password' => 'password'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['token']);
     }
 
     #[Test]
@@ -44,19 +98,17 @@ class AuthTest extends TestCase
     }
 
     #[Test]
-    public function user_can_login()
+    public function user_can_logout()
     {
-        $user = User::factory()->create([
-            'email' => 'user@user.com',
-            'password' => bcrypt('password')
-        ]);
 
-        $response = $this->postJson('/api/login', [
-            'email' => 'user@user.com',
-            'password' => 'password'
-        ]);
+        Sanctum::actingAs(
+            User::factory()->create(),
+            ['*']
+        );
 
-        $response->assertStatus(200)
-            ->assertJsonStructure(['token']);
+        $response = $this->postJson('/api/logout');
+
+    
+        $response->assertOk();
     }
 }
